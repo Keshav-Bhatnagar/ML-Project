@@ -1,0 +1,7 @@
+__pycache__/
+myenv/
+.gemini/
+*.pyc
+.vscode/
+.idea/
+node_modules/
