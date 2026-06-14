@@ -6,7 +6,7 @@ import math, os
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 
 app = Flask(__name__)
 
@@ -161,6 +161,13 @@ def index():
 def analytics():
     with open(os.path.join(BASE_DIR, 'index.html'), 'r', encoding='utf-8') as f:
         return f.read()
+
+
+@app.route('/<path:filename>')
+def serve_root_files(filename):
+    if filename.endswith('.png'):
+        return send_from_directory(BASE_DIR, filename)
+    return "Not Found", 404
 
 
 @app.route('/predict', methods=['POST'])
