@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkyFare Analytics — Model Visualizations</title>
+  <meta name="description" content="Interactive visual analytics and exploratory data insights for the SkyFare AI flight price prediction model." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            heading: ["'Outfit'", "sans-serif"],
+            body: ["'Inter'", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #07090f; color: #e8eaf0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+
+    /* Custom Glassmorphism styling */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(108, 99, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .glow-button {
+      background: linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%);
+      box-shadow: 0 4px 20px rgba(108, 99, 255, 0.4);
+      transition: all 0.3s ease;
+    }
+    .glow-button:hover {
+      box-shadow: 0 6px 24px rgba(108, 99, 255, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .active-tab {
+      background: rgba(108, 99, 255, 0.15);
+      border: 1px solid rgba(108, 99, 255, 0.4);
+      color: #a89fff;
+    }
+
+    /* Ambient background blobs */
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(130px);
+      opacity: 0.25;
+      z-index: 0;
+      pointer-events: none;
+    }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+</head>
+<body className="relative min-h-screen pb-20">
+
+  <!-- Ambient Glow Orbs -->
+  <div class="orb w-[500px] h-[500px] bg-indigo-600 top-[-100px] left-[-100px]"></div>
+  <div class="orb w-[500px] h-[500px] bg-teal-500 bottom-[100px] right-[-100px]"></div>
+  <div class="orb w-[300px] h-[300px] bg-pink-500 top-[40%] left-[40%]"></div>
+
+  <div id="root" className="relative z-10"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const VISUALIZATIONS = [
+      {
+        id: "distribution",
+        title: "Price Distribution",
+        file: "chart1_price_distribution.png",
+        description: "Analysis of how flight prices are distributed across all domestic routes.",
+        insights: [
+          "Most flights cost between ₹4,000 and ₹12,000.",
+          "The raw distribution is right-skewed, indicating a small segment of high-priced flights.",
+          "Log-scale transformation helps linear models learn the distribution patterns more effectively."
+        ]
+      },
+      {
+        id: "airline",
+        title: "Fare by Airline",
+        file: "chart2_price_airline.png",
+        description: "Box plot demonstrating ticket price spreads and medians across different Indian airlines.",
+        insights: [
+          "Jet Airways Business class and Vistara Premium Economy stand out as the premium price drivers.",
+          "Low-cost carriers like IndiGo, SpiceJet, and GoAir maintain very competitive, tightly clustered pricing.",
+          "Different brand tiers show distinct price limits, reflecting target passenger demographics."
+        ]
+      },
+      {
+        id: "stops",
+        title: "Stops Impact",
+        file: "chart3_price_stops.png",
+        description: "How connecting layovers relate to overall ticket prices.",
+        insights: [
+          "Connecting flights (1 or 2 stops) often cost significantly more than direct non-stop flights.",
+          "This price increase is highly correlated with longer total routing distances and flight legs.",
+          "Non-stop flights offer the lowest baseline pricing for major business city pairs."
+        ]
+      },
+      {
+        id: "duration",
+        title: "Duration Correlation",
+        file: "chart4_price_duration.png",
+        description: "Scatter plot with a regression line showing the correlation between flight duration and ticket fare.",
+        insights: [
+          "A strong positive correlation exists: longer duration generally translates to higher ticket costs.",
+          "The relationship is non-linear, showing significant variance for mid-duration layover flights.",
+          "Fuel costs act as a price floor, making duration a critical predictor variable."
+        ]
+      },
+      {
+        id: "seasonality",
+        title: "Seasonal Trends",
+        file: "chart5_price_month.png",
+        description: "Seasonality patterns displaying mean pricing and flight counts per month.",
+        insights: [
+          "March, April, and May show elevated average ticket prices.",
+          "This matches the high-demand summer vacation and holiday travel period in India.",
+          "Pricing models must incorporate seasonality flags to capture school holidays and festival shifts."
+        ]
+      },
+      {
+        id: "timeofday",
+        title: "Departure Hour",
+        file: "chart6_price_hour.png",
+        description: "Bar chart analyzing flight prices by the hour of departure.",
+        insights: [
+          "Early morning departures (4:00 AM – 6:00 AM) are consistently the most affordable.",
+          "Peak commute slots (8:00 AM – 11:00 AM and 5:00 PM – 7:00 PM) command premium prices.",
+          "Grouping hours into time-of-day buckets allows the model to capture consumer preference premiums."
+        ]
+      },
+      {
+        id: "outliers",
+        title: "Outlier Analysis",
+        file: "plot_outliers_before.png",
+        description: "Box plot and histogram prior to cleaning outliers.",
+        insights: [
+          "Identifies extreme fares (often above ₹20,000) that skew standard regression coefficients.",
+          "Outliers are filtered out using the Interquartile Range (IQR) method (Q3 + 1.5 * IQR).",
+          "Removing these points improves model generalization on normal economy bookings."
+        ]
+      }
+    ];
+
+    function App() {
+      const [selectedTab, setSelectedTab] = useState(VISUALIZATIONS[0].id);
+      const activeVis = VISUALIZATIONS.find(v => v.id === selectedTab);
+
+      return (
+        <div className="max-w-6xl mx-auto px-4 pt-12 md:pt-16">
+          {/* Header */}
+          <header className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-4 font-body">
+              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+              Ephermal Exploratory Data Analysis
+            </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold font-heading tracking-tight bg-gradient-to-r from-white via-indigo-200 to-teal-200 bg-clip-text text-transparent leading-none mb-4">
+              SkyFare AI Analytics
+            </h1>
+            <p className="text-gray-400 max-w-xl mx-auto text-sm md:text-base font-body">
+              Interactive dashboard displaying the data preprocessing, distribution insights, and model correlations for domestic flight pricing.
+            </p>
+          </header>
+
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar Navigation */}
+            <div className="flex flex-col gap-2.5 lg:col-span-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-teal-400 mb-2 px-2">Visualizations</div>
+              {VISUALIZATIONS.map(vis => (
+                <button
+                  key={vis.id}
+                  onClick={() => setSelectedTab(vis.id)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all font-body ${
+                    selectedTab === vis.id
+                      ? "active-tab shadow-lg shadow-indigo-500/10"
+                      : "border-transparent text-gray-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {vis.title}
+                </button>
+              ))}
+              
+              <div className="mt-6 p-4 rounded-2xl bg-indigo-950/20 border border-indigo-900/40 font-body">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Model Performance</h4>
+                <div className="flex justify-between items-center text-sm py-1.5 border-b border-white/5">
+                  <span className="text-gray-400">Model Type</span>
+                  <span className="font-semibold text-teal-400">Random Forest</span>
+                </div>
+                <div className="flex justify-between items-center text-sm py-1.5 border-b border-white/5">
+                  <span className="text-gray-400">Train R² Score</span>
+                  <span className="font-semibold text-teal-400">98.7%</span>
+                </div>
+                <div className="flex justify-between items-center text-sm py-1.5">
+                  <span className="text-gray-400">Trees Count</span>
+                  <span className="font-semibold text-indigo-400">100 Trees</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Display Area */}
+            <div className="lg:col-span-3 flex flex-col gap-6">
+              {/* Main Card */}
+              <div className="glass-card rounded-3xl p-6 md:p-8">
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold font-heading text-white">{activeVis.title}</h2>
+                  <p className="text-gray-400 text-sm mt-1 font-body">{activeVis.description}</p>
+                </div>
+
+                {/* Chart Image */}
+                <div className="w-full rounded-2xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center p-2 mb-8">
+                  <img
+                    src={activeVis.file}
+                    alt={activeVis.title}
+                    className="max-h-[480px] w-auto object-contain rounded-lg shadow-2xl transition-all duration-500"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1000&auto=format&fit=crop";
+                    }}
+                  />
+                </div>
+
+                {/* Key Insights */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-teal-400 mb-3 font-body">Key Insights & Analysis</h3>
+                  <ul className="space-y-3 font-body">
+                    {activeVis.insights.map((insight, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm text-gray-300 items-start">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-[10px] font-bold mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <span>{insight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const rootEl = document.getElementById("root");
+    const reactRoot = ReactDOM.createRoot(rootEl);
+    reactRoot.render(<App />);
+  </script>
+</body>
+</html>
