@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SkyFare Analytics — Premium ML Dashboard</title>
-  <meta name="description" content="State-of-the-art interactive visual analytics and exploratory data insights for the SkyFare AI flight price prediction model." />
+  <meta name="description" content="State-of-the-art interactive visual analytics, 3D route mapping, and exploratory data insights for the SkyFare AI flight price prediction model." />
   
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -124,11 +124,12 @@
     }
   </style>
 
-  <!-- React, ReactDOM, Babel, Framer Motion -->
+  <!-- React, ReactDOM, Babel, Framer Motion, and Three.js -->
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
   <script src="https://unpkg.com/framer-motion@11.11.17/dist/framer-motion.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>window.Motion = window.Motion || window.FramerMotion || {};</script>
 </head>
 <body className="relative min-h-screen pb-20 select-none">
@@ -138,15 +139,27 @@
 
   <!-- Background Orbs -->
   <div class="glowing-orb w-[700px] h-[700px] bg-accent-purple top-[-10%] left-[-10%]"></div>
-  <div class="glowing-orb w-[600px] h-[600px] bg-accent-teal bottom-[10%] right-[-10%] animation-delay-2000"></div>
-  <div class="glowing-orb w-[400px] h-[400px] bg-accent-pink top-[40%] left-[30%] animation-delay-4000"></div>
+  <div class="glowing-orb w-[600px] h-[600px] bg-accent-teal bottom-[10%] right-[-10%]"></div>
+  <div class="glowing-orb w-[400px] h-[400px] bg-accent-pink top-[40%] left-[30%]"></div>
 
   <div id="root" className="relative z-10"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
     const Motion = window.Motion;
     const { motion, AnimatePresence } = Motion;
+
+    // Airport Coordinates for Three.js 3D Globe
+    const AIRPORT_MAP = {
+      'Delhi': { lat: 28.5562, lon: 77.1000 },
+      'New Delhi': { lat: 28.5562, lon: 77.1000 },
+      'Mumbai': { lat: 19.0896, lon: 72.8656 },
+      'Bangalore': { lat: 12.9499, lon: 77.6682 },
+      'Chennai': { lat: 12.9900, lon: 80.1693 },
+      'Kolkata': { lat: 22.6547, lon: 88.4467 },
+      'Cochin': { lat: 10.1520, lon: 76.3916 },
+      'Hyderabad': { lat: 17.2313, lon: 78.4298 }
+    };
 
     const VISUALIZATIONS = [
       {
@@ -178,7 +191,7 @@
         description: "Compares average price behaviors and ranges based on the count of route layovers.",
         insights: [
           "Flights with 1 or 2 stops consistently show higher average prices than direct routes.",
-          "Layovers generally correspond to significantly longer flight routes, driving up baseline operational costs.",
+          "Layouts generally correspond to significantly longer flight routes, driving up baseline operational costs.",
           "Direct flights maintain lower baseline tariffs on major primary connections."
         ]
       },
@@ -228,18 +241,238 @@
       }
     ];
 
-    // Mock Live Price Predictor directly in the dashboard
-    function Simulator() {
+    // Helper to calculate Haversine distance
+    const calcHaversine = (lat1, lon1, lat2, lon2) => {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return Math.round(R * c);
+    };
+
+    // 3D Globe Route Visualizer Component using Three.js
+    function FlightGlobe({ source, destination }) {
+      const mountRef = useRef(null);
+
+      useEffect(() => {
+        if (!mountRef.current) return;
+
+        const width = mountRef.current.clientWidth;
+        const height = mountRef.current.clientHeight || 350;
+        
+        // Scene Setup
+        const scene = new THREE.Scene();
+        
+        // Camera Setup
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        camera.position.set(0, 5, 20);
+
+        // Renderer Setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        mountRef.current.appendChild(renderer.domElement);
+
+        // Create Globe
+        const globeRadius = 6.5;
+        const globeGeo = new THREE.SphereGeometry(globeRadius, 40, 40);
+        const globeMat = new THREE.MeshBasicMaterial({
+          color: 0x4f46e5, // Deep Indigo
+          wireframe: true,
+          transparent: true,
+          opacity: 0.12
+        });
+        const globe = new THREE.Mesh(globeGeo, globeMat);
+        scene.add(globe);
+
+        // Create Secondary Atmosphere/Grid Globe
+        const outerGeo = new THREE.SphereGeometry(globeRadius * 1.015, 20, 20);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: 0x10b981, // Teal
+          wireframe: true,
+          transparent: true,
+          opacity: 0.05
+        });
+        const outerGlobe = new THREE.Mesh(outerGeo, outerMat);
+        scene.add(outerGlobe);
+
+        // Coordinate Conversion Helper (Lat/Lon to 3D Cartesian)
+        const convertCoords = (lat, lon, r = globeRadius) => {
+          const phi = (90 - lat) * (Math.PI / 180);
+          const theta = (lon + 180) * (Math.PI / 180);
+          return new THREE.Vector3(
+            -r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi),
+            r * Math.sin(phi) * Math.cos(theta)
+          );
+        };
+
+        // Plot Airport Markers
+        const markerGroup = new THREE.Group();
+        Object.entries(AIRPORT_MAP).forEach(([name, info]) => {
+          const pos = convertCoords(info.lat, info.lon);
+          
+          // Marker Dot
+          const dotGeo = new THREE.SphereGeometry(0.12, 8, 8);
+          const dotMat = new THREE.MeshBasicMaterial({
+            color: 0x10b981, // Teal
+            transparent: true,
+            opacity: 0.85
+          });
+          const dot = new THREE.Mesh(dotGeo, dotMat);
+          dot.position.copy(pos);
+          markerGroup.add(dot);
+        });
+        scene.add(markerGroup);
+
+        // Draw Flight Path Arch & Animate Plane Particle
+        let flightLine = null;
+        let planeParticle = null;
+        let arcCurve = null;
+
+        const srcData = AIRPORT_MAP[source];
+        const dstData = AIRPORT_MAP[destination];
+
+        if (srcData && dstData) {
+          const p1 = convertCoords(srcData.lat, srcData.lon);
+          const p2 = convertCoords(dstData.lat, dstData.lon);
+
+          // Calculate elevated midpoint
+          const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          const dist = p1.distanceTo(p2);
+          const arcHeight = globeRadius + Math.max(1.5, dist * 0.3);
+          midPoint.normalize().multiplyScalar(arcHeight);
+
+          // Bezier Curve
+          arcCurve = new THREE.QuadraticBezierCurve3(p1, midPoint, p2);
+          const points = arcCurve.getPoints(50);
+          const curveGeo = new THREE.BufferGeometry().setFromPoints(points);
+          const curveMat = new THREE.LineBasicMaterial({
+            color: 0xec4899, // Cyber Pink
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.7
+          });
+          flightLine = new THREE.Line(curveGeo, curveMat);
+          scene.add(flightLine);
+
+          // Plane Particle
+          const planeGeo = new THREE.SphereGeometry(0.18, 8, 8);
+          const planeMat = new THREE.MeshBasicMaterial({
+            color: 0xfacc15, // Yellow glowing plane
+            transparent: true,
+            opacity: 0.95
+          });
+          planeParticle = new THREE.Mesh(planeGeo, planeMat);
+          scene.add(planeParticle);
+
+          // Focus Camera on Midpoint
+          const targetCamPos = midPoint.clone().normalize().multiplyScalar(15);
+          camera.position.copy(targetCamPos);
+          camera.lookAt(0, 0, 0);
+        } else {
+          // Default focus on India area
+          const defaultFocus = convertCoords(20.5937, 78.9629, 14);
+          camera.position.copy(defaultFocus);
+          camera.lookAt(0, 0, 0);
+        }
+
+        let planeTime = 0;
+        let frameId;
+
+        // Render Loop
+        const animate = () => {
+          frameId = requestAnimationFrame(animate);
+
+          // Subtle background rotation
+          globe.rotation.y += 0.001;
+          outerGlobe.rotation.y += 0.0006;
+          markerGroup.rotation.y += 0.001;
+
+          if (flightLine) {
+            flightLine.rotation.y += 0.001;
+          }
+
+          // Move plane along the path
+          if (arcCurve && planeParticle) {
+            planeTime += 0.012;
+            if (planeTime > 1) planeTime = 0;
+            const currentPos = arcCurve.getPointAt(planeTime);
+            
+            // Adjust position for global rotation
+            planeParticle.position.copy(currentPos);
+            planeParticle.rotation.y += 0.001;
+          }
+
+          renderer.render(scene, camera);
+        };
+
+        animate();
+
+        // Handle Resize
+        const handleResize = () => {
+          if (!mountRef.current) return;
+          const w = mountRef.current.clientWidth;
+          const h = mountRef.current.clientHeight || 350;
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        };
+        window.addEventListener('resize', handleResize);
+
+        // Cleanup
+        return () => {
+          cancelAnimationFrame(frameId);
+          window.removeEventListener('resize', handleResize);
+          if (mountRef.current && renderer.domElement) {
+            mountRef.current.removeChild(renderer.domElement);
+          }
+          scene.clear();
+        };
+      }, [source, destination]);
+
+      return (
+        <div className="glass-card rounded-3xl p-5 border border-white/5 relative h-[380px] overflow-hidden flex flex-col justify-end">
+          <div className="absolute top-4 left-4 text-xs font-bold text-gray-400 tracking-wider flex items-center gap-2 z-20">
+            <span className="w-2 h-2 rounded-full bg-accent-pink status-pulse"></span>
+            3D Flight Vector Map
+          </div>
+          
+          <div className="absolute inset-0 z-10" ref={mountRef}></div>
+
+          {/* Mini-details overlay */}
+          <div className="relative z-20 bg-darkbg/85 border border-white/5 backdrop-blur-md rounded-2xl p-3.5 flex justify-between items-center text-xs font-semibold">
+            <div className="flex gap-2 items-center">
+              <span className="text-indigo-400 font-heading text-sm uppercase">{source}</span>
+              <span className="text-gray-600">→</span>
+              <span className="text-teal-400 font-heading text-sm uppercase">{destination}</span>
+            </div>
+            {AIRPORT_MAP[source] && AIRPORT_MAP[destination] && (
+              <div className="text-gray-400">
+                Route Distance: <strong className="text-white font-heading">
+                  {calcHaversine(AIRPORT_MAP[source].lat, AIRPORT_MAP[source].lon, AIRPORT_MAP[destination].lat, AIRPORT_MAP[destination].lon)} km
+                </strong>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Simulator component
+    function Simulator({ source, setSource, destination, setDestination }) {
       const [airline, setAirline] = useState("IndiGo");
       const [stops, setStops] = useState(0);
       const [duration, setDuration] = useState(120);
       const [price, setPrice] = useState(4500);
 
       useEffect(() => {
-        // Simple mock regression formula based on analysis coefficients
         let basePrice = 3000;
         
-        // Airline multipliers
+        // Airline margins
         const airlinePrices = {
           "IndiGo": 800,
           "Air India": 1800,
@@ -249,12 +482,22 @@
           "Air Asia": 300
         };
         
+        // Dynamic pricing using coordinates distance
+        let dist = 800;
+        if (AIRPORT_MAP[source] && AIRPORT_MAP[destination]) {
+          dist = calcHaversine(
+            AIRPORT_MAP[source].lat, AIRPORT_MAP[source].lon,
+            AIRPORT_MAP[destination].lat, AIRPORT_MAP[destination].lon
+          );
+        }
+
         basePrice += (airlinePrices[airline] || 1000);
-        basePrice += (stops * 2500);
-        basePrice += (duration * 8.5); // ₹8.5 per minute
+        basePrice += (stops * 2000);
+        basePrice += (dist * 3.8); // ₹3.8 per km distance floor
+        basePrice += (duration * 2.5);
         
         setPrice(Math.round(basePrice));
-      }, [airline, stops, duration]);
+      }, [airline, stops, duration, source, destination]);
 
       return (
         <div className="glass-card rounded-3xl p-6 border border-white/5 relative overflow-hidden">
@@ -264,10 +507,43 @@
             <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
-            Live Price Simulator
+            Interactive Price Simulator
           </h3>
           
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Departure</label>
+                <select 
+                  value={source} 
+                  onChange={(e) => setSource(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="Delhi" className="bg-darkbg">Delhi</option>
+                  <option value="Mumbai" className="bg-darkbg">Mumbai</option>
+                  <option value="Bangalore" className="bg-darkbg">Bangalore</option>
+                  <option value="Chennai" className="bg-darkbg">Chennai</option>
+                  <option value="Kolkata" className="bg-darkbg">Kolkata</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Destination</label>
+                <select 
+                  value={destination} 
+                  onChange={(e) => setDestination(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="Bangalore" className="bg-darkbg">Bangalore</option>
+                  <option value="Delhi" className="bg-darkbg">Delhi</option>
+                  <option value="Mumbai" className="bg-darkbg">Mumbai</option>
+                  <option value="Chennai" className="bg-darkbg">Chennai</option>
+                  <option value="Kolkata" className="bg-darkbg">Kolkata</option>
+                  <option value="Cochin" className="bg-darkbg">Cochin</option>
+                  <option value="Hyderabad" className="bg-darkbg">Hyderabad</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-gray-400 block mb-1">Airline Carrier</label>
               <select 
@@ -322,6 +598,8 @@
     }
 
     function App() {
+      const [source, setSource] = useState("Delhi");
+      const [destination, setDestination] = useState("Bangalore");
       const [selectedTab, setSelectedTab] = useState(VISUALIZATIONS[0].id);
       const [activeImg, setActiveImg] = useState(null); // Lightbox
       const activeVis = VISUALIZATIONS.find(v => v.id === selectedTab);
@@ -409,8 +687,13 @@
                 </div>
               </div>
 
-              {/* Live Simulator component */}
-              <Simulator />
+              {/* Simulator Component */}
+              <Simulator 
+                source={source} 
+                setSource={setSource} 
+                destination={destination} 
+                setDestination={setDestination} 
+              />
 
               {/* Model Stats Card */}
               <div className="glass-card rounded-3xl p-6 border border-white/5 relative overflow-hidden">
@@ -441,14 +724,19 @@
 
             </div>
 
-            {/* Right Column: Visualization Display & Insights */}
-            <div className="lg:col-span-8">
+            {/* Right Column: 3D Flight Vector Map & Visualizations */}
+            <div className="lg:col-span-8 space-y-6">
+              
+              {/* 3D Flight Globe Route Visualizer */}
+              <FlightGlobe source={source} destination={destination} />
+
+              {/* Visualizations display card */}
               <div className="glass-card rounded-3xl p-6 md:p-8 border border-white/5 glass-card-glow transition-all">
                 
                 {/* Active Tab Details */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h2 className="text-3xl font-black font-heading text-white tracking-tight">{activeVis.title}</h2>
+                    <h2 className="text-2xl font-bold font-heading text-white tracking-tight">{activeVis.title}</h2>
                     <p className="text-gray-400 text-sm mt-1 font-body leading-relaxed">{activeVis.description}</p>
                   </div>
                   <div className="flex-shrink-0">
@@ -483,7 +771,6 @@
                     className="max-h-[420px] w-auto object-contain rounded-lg shadow-2xl transition-transform duration-300 group-hover:scale-[1.02]"
                     onError={(e) => {
                       e.target.onerror = null;
-                      // Fallback placeholder with same aspect ratio if local files are missing in browser preview
                       e.target.src = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=800";
                     }}
                   />
