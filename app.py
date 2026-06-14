@@ -6,7 +6,7 @@ import math, os
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_file
 
 app = Flask(__name__)
 
@@ -166,7 +166,9 @@ def analytics():
 @app.route('/<path:filename>')
 def serve_root_files(filename):
     if filename.endswith('.png'):
-        return send_from_directory(BASE_DIR, filename)
+        filepath = os.path.join(BASE_DIR, filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, mimetype='image/png')
     return "Not Found", 404
 
 
