@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SkyFare Analytics — Premium ML Dashboard</title>
-  <meta name="description" content="State-of-the-art interactive visual analytics, 3D route mapping, and exploratory data insights for the SkyFare AI flight price prediction model." />
+  <meta name="description" content="State-of-the-art interactive visual analytics, 3D Indian flight route mapping, and exploratory data insights for the SkyFare AI flight price prediction model." />
   
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -149,7 +149,7 @@
     const Motion = window.Motion;
     const { motion, AnimatePresence } = Motion;
 
-    // Airport Coordinates for Three.js 3D Globe
+    // Airport Coordinates for Three.js Mapping
     const AIRPORT_MAP = {
       'Delhi': { lat: 28.5562, lon: 77.1000 },
       'New Delhi': { lat: 28.5562, lon: 77.1000 },
@@ -160,6 +160,45 @@
       'Cochin': { lat: 10.1520, lon: 76.3916 },
       'Hyderabad': { lat: 17.2313, lon: 78.4298 }
     };
+
+    // Border coordinates to render simplified outline of India
+    const INDIA_BORDER = [
+      { lat: 35.5, lon: 74.5 },
+      { lat: 35.5, lon: 76.0 },
+      { lat: 34.0, lon: 78.0 },
+      { lat: 32.5, lon: 79.0 },
+      { lat: 30.5, lon: 80.0 },
+      { lat: 29.5, lon: 81.0 },
+      { lat: 27.5, lon: 85.0 },
+      { lat: 27.5, lon: 89.0 },
+      { lat: 28.5, lon: 92.0 },
+      { lat: 28.0, lon: 96.0 },
+      { lat: 26.5, lon: 97.0 },
+      { lat: 24.0, lon: 94.5 },
+      { lat: 23.0, lon: 92.0 },
+      { lat: 22.0, lon: 92.5 },
+      { lat: 22.0, lon: 89.5 },
+      { lat: 24.5, lon: 88.0 },
+      { lat: 22.0, lon: 87.0 },
+      { lat: 20.0, lon: 86.0 },
+      { lat: 17.5, lon: 83.5 },
+      { lat: 13.0, lon: 80.5 },
+      { lat: 9.5, lon: 79.5 },
+      { lat: 8.0, lon: 77.5 },
+      { lat: 10.0, lon: 76.0 },
+      { lat: 13.0, lon: 74.5 },
+      { lat: 16.0, lon: 73.5 },
+      { lat: 19.5, lon: 72.8 },
+      { lat: 21.0, lon: 72.0 },
+      { lat: 22.5, lon: 68.5 },
+      { lat: 24.0, lon: 68.0 },
+      { lat: 24.5, lon: 71.0 },
+      { lat: 27.0, lon: 70.0 },
+      { lat: 29.5, lon: 73.0 },
+      { lat: 32.5, lon: 74.0 },
+      { lat: 34.5, lon: 73.5 },
+      { lat: 35.5, lon: 74.5 }
+    ];
 
     const VISUALIZATIONS = [
       {
@@ -191,7 +230,7 @@
         description: "Compares average price behaviors and ranges based on the count of route layovers.",
         insights: [
           "Flights with 1 or 2 stops consistently show higher average prices than direct routes.",
-          "Layouts generally correspond to significantly longer flight routes, driving up baseline operational costs.",
+          "Layovers generally correspond to significantly longer flight routes, driving up baseline operational costs.",
           "Direct flights maintain lower baseline tariffs on major primary connections."
         ]
       },
@@ -253,158 +292,194 @@
       return Math.round(R * c);
     };
 
-    // 3D Globe Route Visualizer Component using Three.js
-    function FlightGlobe({ source, destination }) {
+    // Point in Polygon algorithm to test coordinate boundaries
+    const isPointInPolygon = (lat, lon, polygon) => {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].lon, yi = polygon[i].lat;
+        const xj = polygon[j].lon, yj = polygon[j].lat;
+        const intersect = ((yi > lat) !== (yj > lat))
+            && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    };
+
+    // Interactive 3D India Route Map Component using Three.js
+    function IndiaFlightMap({ source, destination }) {
       const mountRef = useRef(null);
 
       useEffect(() => {
         if (!mountRef.current) return;
 
         const width = mountRef.current.clientWidth;
-        const height = mountRef.current.clientHeight || 350;
+        const height = mountRef.current.clientHeight || 380;
         
         // Scene Setup
         const scene = new THREE.Scene();
         
-        // Camera Setup
-        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-        camera.position.set(0, 5, 20);
+        // Perspective Camera tilted for pseudo-3D look
+        const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+        camera.position.set(0, -6, 16);
+        camera.lookAt(0, 1.2, 0);
 
-        // Renderer Setup
+        // Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(width, height);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         mountRef.current.appendChild(renderer.domElement);
 
-        // Create Globe
-        const globeRadius = 6.5;
-        const globeGeo = new THREE.SphereGeometry(globeRadius, 40, 40);
-        const globeMat = new THREE.MeshBasicMaterial({
-          color: 0x4f46e5, // Deep Indigo
-          wireframe: true,
-          transparent: true,
-          opacity: 0.12
-        });
-        const globe = new THREE.Mesh(globeGeo, globeMat);
-        scene.add(globe);
+        // Map projection parameters
+        const scale = 0.55;
+        const centerLon = 82.5;
+        const centerLat = 22.0;
 
-        // Create Secondary Atmosphere/Grid Globe
-        const outerGeo = new THREE.SphereGeometry(globeRadius * 1.015, 20, 20);
-        const outerMat = new THREE.MeshBasicMaterial({
-          color: 0x10b981, // Teal
-          wireframe: true,
-          transparent: true,
-          opacity: 0.05
-        });
-        const outerGlobe = new THREE.Mesh(outerGeo, outerMat);
-        scene.add(outerGlobe);
-
-        // Coordinate Conversion Helper (Lat/Lon to 3D Cartesian)
-        const convertCoords = (lat, lon, r = globeRadius) => {
-          const phi = (90 - lat) * (Math.PI / 180);
-          const theta = (lon + 180) * (Math.PI / 180);
+        const projectCoords = (lat, lon) => {
           return new THREE.Vector3(
-            -r * Math.sin(phi) * Math.sin(theta),
-            r * Math.cos(phi),
-            r * Math.sin(phi) * Math.cos(theta)
+            (lon - centerLon) * scale,
+            (lat - centerLat) * scale,
+            0
           );
         };
 
-        // Plot Airport Markers
-        const markerGroup = new THREE.Group();
-        Object.entries(AIRPORT_MAP).forEach(([name, info]) => {
-          const pos = convertCoords(info.lat, info.lon);
-          
-          // Marker Dot
-          const dotGeo = new THREE.SphereGeometry(0.12, 8, 8);
-          const dotMat = new THREE.MeshBasicMaterial({
-            color: 0x10b981, // Teal
-            transparent: true,
-            opacity: 0.85
-          });
-          const dot = new THREE.Mesh(dotGeo, dotMat);
-          dot.position.copy(pos);
-          markerGroup.add(dot);
-        });
-        scene.add(markerGroup);
+        const mapGroup = new THREE.Group();
+        scene.add(mapGroup);
 
-        // Draw Flight Path Arch & Animate Plane Particle
-        let flightLine = null;
-        let planeParticle = null;
+        // 1. Draw India Border Line
+        const borderPoints = INDIA_BORDER.map(pt => projectCoords(pt.lat, pt.lon));
+        const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
+        const borderMat = new THREE.LineBasicMaterial({
+          color: 0x4f46e5, // Glowing Indigo
+          linewidth: 2,
+          transparent: true,
+          opacity: 0.55
+        });
+        const borderLine = new THREE.LineLoop(borderGeo, borderMat);
+        mapGroup.add(borderLine);
+
+        // 2. Generate landmass dot grid (hologram particle grid of India)
+        const dotPoints = [];
+        const latMin = 8.0, latMax = 35.5;
+        const lonMin = 68.0, lonMax = 97.0;
+        const gridStep = 0.55;
+
+        for (let lat = latMin; lat <= latMax; lat += gridStep) {
+          for (let lon = lonMin; lon <= lonMax; lon += gridStep) {
+            if (isPointInPolygon(lat, lon, INDIA_BORDER)) {
+              dotPoints.push(projectCoords(lat, lon));
+            }
+          }
+        }
+
+        const dotGeo = new THREE.BufferGeometry().setFromPoints(dotPoints);
+        const dotMat = new THREE.PointsMaterial({
+          color: 0x10b981, // Teal glow particles
+          size: 0.12,
+          transparent: true,
+          opacity: 0.35
+        });
+        const landmapGrid = new THREE.Points(dotGeo, dotMat);
+        mapGroup.add(landmapGrid);
+
+        // 3. Plot Airport Hubs
+        const airportGroup = new THREE.Group();
+        mapGroup.add(airportGroup);
+
+        Object.entries(AIRPORT_MAP).forEach(([name, coords]) => {
+          const pos = projectCoords(coords.lat, coords.lon);
+          
+          // Outer Ring
+          const ringGeo = new THREE.RingGeometry(0.18, 0.22, 16);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x10b981,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.5
+          });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.position.copy(pos);
+          airportGroup.add(ring);
+
+          // Inner Center Point
+          const coreGeo = new THREE.CircleGeometry(0.08, 8);
+          const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9
+          });
+          const core = new THREE.Mesh(coreGeo, coreMat);
+          core.position.copy(pos);
+          airportGroup.add(core);
+        });
+
+        // 4. Construct Flight Arc and Plane Particle
+        let flightArc = null;
+        let planeMesh = null;
         let arcCurve = null;
 
         const srcData = AIRPORT_MAP[source];
         const dstData = AIRPORT_MAP[destination];
 
         if (srcData && dstData) {
-          const p1 = convertCoords(srcData.lat, srcData.lon);
-          const p2 = convertCoords(dstData.lat, dstData.lon);
+          const p1 = projectCoords(srcData.lat, srcData.lon);
+          const p2 = projectCoords(dstData.lat, dstData.lon);
 
-          // Calculate elevated midpoint
-          const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          // Elevate arc midpoint outwards (Z-axis is perpendicular to flat map plane)
           const dist = p1.distanceTo(p2);
-          const arcHeight = globeRadius + Math.max(1.5, dist * 0.3);
-          midPoint.normalize().multiplyScalar(arcHeight);
+          const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          midPoint.z = dist * 0.35; // Arch height based on distance
 
-          // Bezier Curve
           arcCurve = new THREE.QuadraticBezierCurve3(p1, midPoint, p2);
           const points = arcCurve.getPoints(50);
-          const curveGeo = new THREE.BufferGeometry().setFromPoints(points);
-          const curveMat = new THREE.LineBasicMaterial({
-            color: 0xec4899, // Cyber Pink
+          const arcGeo = new THREE.BufferGeometry().setFromPoints(points);
+          const arcMat = new THREE.LineBasicMaterial({
+            color: 0xec4899, // Pink neon arch
             linewidth: 2,
             transparent: true,
-            opacity: 0.7
+            opacity: 0.75
           });
-          flightLine = new THREE.Line(curveGeo, curveMat);
-          scene.add(flightLine);
+          flightArc = new THREE.Line(arcGeo, arcMat);
+          mapGroup.add(flightArc);
 
-          // Plane Particle
+          // Plane (glowing yellow sphere)
           const planeGeo = new THREE.SphereGeometry(0.18, 8, 8);
           const planeMat = new THREE.MeshBasicMaterial({
-            color: 0xfacc15, // Yellow glowing plane
+            color: 0xfacc15, // Bright yellow plane
             transparent: true,
-            opacity: 0.95
+            opacity: 1
           });
-          planeParticle = new THREE.Mesh(planeGeo, planeMat);
-          scene.add(planeParticle);
-
-          // Focus Camera on Midpoint
-          const targetCamPos = midPoint.clone().normalize().multiplyScalar(15);
-          camera.position.copy(targetCamPos);
-          camera.lookAt(0, 0, 0);
-        } else {
-          // Default focus on India area
-          const defaultFocus = convertCoords(20.5937, 78.9629, 14);
-          camera.position.copy(defaultFocus);
-          camera.lookAt(0, 0, 0);
+          planeMesh = new THREE.Mesh(planeGeo, planeMat);
+          mapGroup.add(planeMesh);
         }
 
-        let planeTime = 0;
+        let planeProgress = 0;
         let frameId;
 
-        // Render Loop
+        // Animation Loop
         const animate = () => {
           frameId = requestAnimationFrame(animate);
 
-          // Subtle background rotation
-          globe.rotation.y += 0.001;
-          outerGlobe.rotation.y += 0.0006;
-          markerGroup.rotation.y += 0.001;
+          // Make the India Map hover/tilt subtly in pseudo-3D
+          const time = Date.now() * 0.0015;
+          mapGroup.rotation.z = Math.sin(time * 0.3) * 0.04;
+          mapGroup.rotation.x = -0.4 + Math.cos(time * 0.3) * 0.03;
 
-          if (flightLine) {
-            flightLine.rotation.y += 0.001;
+          // Holographic landmass dot ripple animation
+          const positions = landmapGrid.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length; i += 3) {
+            const x = positions[i];
+            const y = positions[i + 1];
+            // Ripple wave on Z axis
+            positions[i + 2] = Math.sin(time * 1.5 + x * 0.4 + y * 0.4) * 0.12;
           }
+          landmapGrid.geometry.attributes.position.needsUpdate = true;
 
-          // Move plane along the path
-          if (arcCurve && planeParticle) {
-            planeTime += 0.012;
-            if (planeTime > 1) planeTime = 0;
-            const currentPos = arcCurve.getPointAt(planeTime);
-            
-            // Adjust position for global rotation
-            planeParticle.position.copy(currentPos);
-            planeParticle.rotation.y += 0.001;
+          // Animate flight plane progress
+          if (arcCurve && planeMesh) {
+            planeProgress += 0.012;
+            if (planeProgress > 1) planeProgress = 0;
+            const planePos = arcCurve.getPointAt(planeProgress);
+            planeMesh.position.copy(planePos);
           }
 
           renderer.render(scene, camera);
@@ -416,7 +491,7 @@
         const handleResize = () => {
           if (!mountRef.current) return;
           const w = mountRef.current.clientWidth;
-          const h = mountRef.current.clientHeight || 350;
+          const h = mountRef.current.clientHeight || 380;
           renderer.setSize(w, h);
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
@@ -435,15 +510,15 @@
       }, [source, destination]);
 
       return (
-        <div className="glass-card rounded-3xl p-5 border border-white/5 relative h-[380px] overflow-hidden flex flex-col justify-end">
+        <div className="glass-card rounded-3xl p-5 border border-white/5 relative h-[420px] overflow-hidden flex flex-col justify-end">
           <div className="absolute top-4 left-4 text-xs font-bold text-gray-400 tracking-wider flex items-center gap-2 z-20">
             <span className="w-2 h-2 rounded-full bg-accent-pink status-pulse"></span>
-            3D Flight Vector Map
+            3D Holographic India Vector Route Map
           </div>
           
           <div className="absolute inset-0 z-10" ref={mountRef}></div>
 
-          {/* Mini-details overlay */}
+          {/* Details Overlay */}
           <div className="relative z-20 bg-darkbg/85 border border-white/5 backdrop-blur-md rounded-2xl p-3.5 flex justify-between items-center text-xs font-semibold">
             <div className="flex gap-2 items-center">
               <span className="text-indigo-400 font-heading text-sm uppercase">{source}</span>
@@ -724,11 +799,11 @@
 
             </div>
 
-            {/* Right Column: 3D Flight Vector Map & Visualizations */}
+            {/* Right Column: 3D Flight India Map & Visualizations */}
             <div className="lg:col-span-8 space-y-6">
               
-              {/* 3D Flight Globe Route Visualizer */}
-              <FlightGlobe source={source} destination={destination} />
+              {/* 3D Flight India Map Visualizer */}
+              <IndiaFlightMap source={source} destination={destination} />
 
               {/* Visualizations display card */}
               <div className="glass-card rounded-3xl p-6 md:p-8 border border-white/5 glass-card-glow transition-all">
