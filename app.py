@@ -159,8 +159,7 @@ def index():
 
 @app.route('/analytics')
 def analytics():
-    with open(os.path.join(BASE_DIR, 'index.html'), 'r', encoding='utf-8') as f:
-        return f.read()
+    return render_template('analytics.html')
 
 
 @app.route('/predict', methods=['POST'])
