@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SkyFare AI – Flight Price Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;
+  --glass:rgba(255,255,255,0.05);
+  --glass-border:rgba(255,255,255,0.10);
+  --accent:#6c63ff;
+  --accent2:#00d4aa;
+  --text:#e8eaf0;
+  --muted:#8b8fa8;
+  --error:#ff5e5e;
+  --card-r:20px;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ── Background ── */
+.bg-wrap{position:fixed;inset:0;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(110px);opacity:.35}
+.orb1{width:600px;height:600px;background:radial-gradient(circle,#6c63ff,transparent);top:-150px;left:-150px}
+.orb2{width:500px;height:500px;background:radial-gradient(circle,#00d4aa,transparent);bottom:-100px;right:-100px}
+.orb3{width:350px;height:350px;background:radial-gradient(circle,#ff6b9d,transparent);top:40%;left:50%;transform:translate(-50%,-50%)}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:40px 40px}
+
+/* ── Layout ── */
+.page{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:60px 20px 80px}
+
+/* ── Header ── */
+header{text-align:center;margin-bottom:52px}
+.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.35);border-radius:50px;padding:6px 16px;font-size:.78rem;font-weight:600;letter-spacing:.05em;color:#a89fff;margin-bottom:22px}
+.badge span{display:inline-block;width:7px;height:7px;border-radius:50%;background:#6c63ff;box-shadow:0 0 8px #6c63ff;animation:pulse 2s infinite}
+h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;background:linear-gradient(135deg,#fff 0%,#a89fff 60%,#00d4aa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.15;margin-bottom:14px}
+.sub{color:var(--muted);font-size:1.05rem;font-weight:400;max-width:500px;margin:0 auto}
+
+/* ── Card ── */
+.card{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--card-r);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:40px;margin-bottom:24px}
+
+/* ── Section labels ── */
+.section-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;color:var(--accent2);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(0,212,170,.3),transparent)}
+
+/* ── Grid ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:640px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* ── Form fields ── */
+.field{display:flex;flex-direction:column;gap:7px}
+label{font-size:.82rem;font-weight:600;color:var(--muted);letter-spacing:.03em}
+input:not([type=checkbox]),select{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:13px 16px;color:var(--text);font-family:inherit;font-size:.95rem;transition:all .25s;outline:none;appearance:none;-webkit-appearance:none}
+input:not([type=checkbox]):focus,select:focus{border-color:var(--accent);background:rgba(108,99,255,.08);box-shadow:0 0 0 3px rgba(108,99,255,.15)}
+select option{background:#1a1d2e;color:#fff}
+input[type=time]{color-scheme:dark}
+
+/* ── Time row ── */
+.time-row{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:end}
+.time-sep{color:var(--muted);font-size:1.3rem;text-align:center;padding-bottom:12px;font-weight:300}
+
+/* ── Checkbox group ── */
+.check-group{display:flex;flex-wrap:wrap;gap:14px;margin-top:4px}
+.check-item{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.check-item input[type=checkbox]{
+  appearance:auto;-webkit-appearance:auto;
+  width:20px;height:20px;min-width:20px;
+  border-radius:5px;accent-color:var(--accent);
+  cursor:pointer;margin:0;
+  background:transparent;
+  border:none;padding:0;
+  box-shadow:none;
+}
+.check-item span{font-size:.9rem;font-weight:500;color:var(--text)}
+
+/* ── Button ── */
+.btn-wrap{text-align:center;margin-top:10px}
+#predict-btn{position:relative;display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,var(--accent),#8b80ff);border:none;border-radius:14px;padding:17px 52px;font-size:1.05rem;font-weight:700;color:#fff;cursor:pointer;transition:all .3s;letter-spacing:.02em;box-shadow:0 8px 30px rgba(108,99,255,.4)}
+#predict-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 40px rgba(108,99,255,.55)}
+#predict-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-icon{font-size:1.2rem;transition:transform .3s}
+#predict-btn:hover .btn-icon{transform:translateX(4px)}
+
+/* ── Result card ── */
+#result-card{display:none;animation:fadeUp .5s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.result-inner{text-align:center}
+.result-label{font-size:.8rem;font-weight:600;letter-spacing:.1em;color:var(--accent2);text-transform:uppercase;margin-bottom:16px}
+.price-display{font-size:clamp(2.8rem,7vw,4.5rem);font-weight:800;background:linear-gradient(135deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.price-currency{font-size:2rem;vertical-align:super;opacity:.7}
+.price-range{margin-top:14px;font-size:.9rem;color:var(--muted);font-weight:500}
+.price-range strong{color:var(--text)}
+.confidence-bar-wrap{margin:22px auto 0;max-width:340px}
+.conf-labels{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:6px}
+.conf-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+.conf-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;width:0;transition:width 1s ease}
+.model-tag{display:inline-block;margin-top:20px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.2);border-radius:50px;padding:5px 16px;font-size:.75rem;color:var(--accent2);font-weight:600}
+
+/* ── Error ── */
+#error-box{display:none;background:rgba(255,94,94,.08);border:1px solid rgba(255,94,94,.3);border-radius:12px;padding:14px 18px;color:var(--error);font-size:.9rem;margin-top:16px}
+
+/* ── Loader ── */
+.loader{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Info footer ── */
+.info-strip{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-top:32px;opacity:.6;font-size:.78rem;color:var(--muted)}
+.info-strip span{display:flex;align-items:center;gap:5px}
+</style>
+</head>
+<body>
+
+<div class="bg-wrap">
+  <div class="grid-bg"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+
+<div class="page">
+  <header>
+    <div class="badge"><span></span> AI-POWERED · RANDOM FOREST · 98.7% TRAIN R²</div>
+    <h1>SkyFare AI<br>Flight Price Predictor</h1>
+    <p class="sub">Enter your flight details and get an instant price estimate powered by machine learning.</p>
+  </header>
+
+  <div class="card">
+    <div class="section-label">✈ Flight Details</div>
+    <div class="grid-3" style="margin-bottom:18px">
+      <div class="field">
+        <label for="airline">Airline</label>
+        <select id="airline">
+          <option value="IndiGo">IndiGo</option>
+          <option value="Air India">Air India</option>
+          <option value="Jet Airways">Jet Airways</option>
+          <option value="SpiceJet">SpiceJet</option>
+          <option value="Multiple carriers">Multiple Carriers</option>
+          <option value="GoAir">GoAir</option>
+          <option value="Vistara">Vistara</option>
+          <option value="Air Asia">Air Asia</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="source">From (Source)</label>
+        <select id="source">
+          <option value="Bangalore">Bangalore</option>
+          <option value="Delhi">Delhi</option>
+          <option value="Mumbai">Mumbai</option>
+          <option value="Chennai">Chennai</option>
+          <option value="Kolkata">Kolkata</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="destination">To (Destination)</label>
+        <select id="destination">
+          <option value="New Delhi">New Delhi</option>
+          <option value="Cochin">Cochin</option>
+          <option value="Bangalore">Bangalore</option>
+          <option value="Kolkata">Kolkata</option>
+          <option value="Delhi">Delhi</option>
+          <option value="Hyderabad">Hyderabad</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:18px">
+      <div class="field">
+        <label for="journey_date">Journey Date</label>
+        <input type="date" id="journey_date"/>
+      </div>
+      <div class="field">
+        <label for="stops">Number of Stops</label>
+        <select id="stops">
+          <option value="0">Non-stop</option>
+          <option value="1">1 Stop</option>
+          <option value="2">2 Stops</option>
+          <option value="3">3 Stops</option>
+          <option value="4">4 Stops</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:8px">⏱ Timing</div>
+
+    <div class="time-row" style="margin-bottom:18px">
+      <div class="field">
+        <label for="dep_time">Departure Time</label>
+        <input type="time" id="dep_time" value="08:00"/>
+      </div>
+      <div class="time-sep">→</div>
+      <div class="field">
+        <label for="arr_time">Arrival Time</label>
+        <input type="time" id="arr_time" value="11:00"/>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="field">
+        <label for="dur_h">Duration (Hours)</label>
+        <input type="number" id="dur_h" min="0" max="48" value="3" placeholder="e.g. 2"/>
+      </div>
+      <div class="field">
+        <label for="dur_m">Duration (Minutes)</label>
+        <input type="number" id="dur_m" min="0" max="59" value="0" placeholder="e.g. 30"/>
+      </div>
+    </div>
+
+    <div class="section-label">⚙ Extras</div>
+    <div class="check-group">
+      <label class="check-item">
+        <input type="checkbox" id="no_baggage"/>
+        <span>No check-in baggage</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="no_meal"/>
+        <span>Meal not included</span>
+      </label>
+    </div>
+
+    <div class="btn-wrap" style="margin-top:32px">
+      <button id="predict-btn" onclick="predict()">
+        <span class="btn-icon">🚀</span>
+        Predict Price
+        <div class="loader" id="loader"></div>
+      </button>
+    </div>
+    <div id="error-box"></div>
+  </div>
+
+  <div class="card" id="result-card">
+    <div class="result-inner">
+      <div class="result-label">Estimated Ticket Price</div>
+      <div class="price-display">
+        <span class="price-currency">₹</span><span id="price-val">–</span>
+      </div>
+      <div class="price-range">
+        Likely range: <strong>₹<span id="low-val">–</span></strong>
+        &nbsp;–&nbsp;
+        <strong>₹<span id="high-val">–</span></strong>
+      </div>
+      <div class="confidence-bar-wrap">
+        <div class="conf-labels"><span>Lower bound</span><span>Upper bound</span></div>
+        <div class="conf-bar"><div class="conf-fill" id="conf-fill"></div></div>
+      </div>
+      <div class="model-tag">Random Forest · 100 Trees · R² 0.9868</div>
+    </div>
+  </div>
+
+  <div class="info-strip">
+    <span>📊 Trained on 11,800 Indian flights</span>
+    <span>🤖 Random Forest Regressor</span>
+    <span>📍 Haversine route distance</span>
+    <span>🎓 University ML Project</span>
+  </div>
+</div>
+
+<script>
+// Set default journey date to tomorrow
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+document.getElementById('journey_date').value = tomorrow.toISOString().split('T')[0];
+
+function fmt(n){ return Math.round(n).toLocaleString('en-IN'); }
+
+async function predict(){
+  const btn    = document.getElementById('predict-btn');
+  const loader = document.getElementById('loader');
+  const errBox = document.getElementById('error-box');
+  const result = document.getElementById('result-card');
+
+  errBox.style.display  = 'none';
+  result.style.display  = 'none';
+  btn.disabled = true;
+  loader.style.display  = 'inline-block';
+
+  const depTime = document.getElementById('dep_time').value.split(':');
+  const arrTime = document.getElementById('arr_time').value.split(':');
+
+  const payload = {
+    airline:          document.getElementById('airline').value,
+    source:           document.getElementById('source').value,
+    destination:      document.getElementById('destination').value,
+    stops:            document.getElementById('stops').value,
+    journey_date:     document.getElementById('journey_date').value,
+    dep_hour:         depTime[0],
+    dep_min:          depTime[1],
+    arrival_hour:     arrTime[0],
+    arrival_min:      arrTime[1],
+    duration_hours:   document.getElementById('dur_h').value,
+    duration_mins_part: document.getElementById('dur_m').value,
+    no_baggage:       document.getElementById('no_baggage').checked ? 1 : 0,
+    no_meal:          document.getElementById('no_meal').checked ? 1 : 0,
+  };
+
+  try {
+    const resp = await fetch('/predict', {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify(payload)
+    });
+    const data = await resp.json();
+
+    if(!data.success) throw new Error(data.error || 'Prediction failed');
+
+    document.getElementById('price-val').textContent = fmt(data.price);
+    document.getElementById('low-val').textContent   = fmt(data.low);
+    document.getElementById('high-val').textContent  = fmt(data.high);
+
+    // Animate confidence bar (width = 100% always, but visual)
+    result.style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('conf-fill').style.width = '100%';
+    }, 100);
+
+    // Animate price count-up
+    animateCount('price-val', 0, data.price, 900);
+
+  } catch(e){
+    errBox.textContent    = '⚠ ' + e.message;
+    errBox.style.display  = 'block';
+  } finally {
+    btn.disabled         = false;
+    loader.style.display = 'none';
+  }
+}
+
+function animateCount(id, from, to, ms){
+  const el  = document.getElementById(id);
+  const start = performance.now();
+  function step(now){
+    const p = Math.min((now - start) / ms, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(from + (to - from) * ease);
+    if(p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+</script>
+</body>
+</html>

@@ -157,9 +157,9 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/analytics')
-def analytics():
-    return render_template('analytics.html')
+@app.route('/predictor')
+def predictor():
+    return render_template('predictor.html')
 
 
 @app.route('/predict', methods=['POST'])
