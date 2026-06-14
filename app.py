@@ -12,8 +12,8 @@ app = Flask(__name__)
 
 # ─── Load model artefacts once at startup ───────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-MODEL      = joblib.load(os.path.join(BASE_DIR, 'rf_model.pkl'))
-COLUMNS    = joblib.load(os.path.join(BASE_DIR, 'rf_columns.pkl'))
+MODEL      = joblib.load(os.path.join(BASE_DIR, 'models', 'rf_model.pkl'))
+COLUMNS    = joblib.load(os.path.join(BASE_DIR, 'models', 'rf_columns.pkl'))
 
 # ─── Constants (mirrors serialize_model.py) ──────────────────────
 AIRPORT_COORDS = {
@@ -161,15 +161,6 @@ def index():
 def analytics():
     with open(os.path.join(BASE_DIR, 'index.html'), 'r', encoding='utf-8') as f:
         return f.read()
-
-
-@app.route('/<path:filename>')
-def serve_root_files(filename):
-    if filename.endswith('.png'):
-        filepath = os.path.join(BASE_DIR, filename)
-        if os.path.exists(filepath):
-            return send_file(filepath, mimetype='image/png')
-    return "Not Found", 404
 
 
 @app.route('/predict', methods=['POST'])

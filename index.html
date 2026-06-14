@@ -204,7 +204,7 @@
       {
         id: "distribution",
         title: "Price Distribution",
-        file: "chart1_price_distribution.png",
+        file: "static/chart1_price_distribution.png",
         description: "Explores flight pricing frequencies across Indian domestic routes, highlighting outliers and density distributions.",
         insights: [
           "Fares predominantly concentrate within the ₹4,000 to ₹12,000 interval.",
@@ -215,7 +215,7 @@
       {
         id: "airline",
         title: "Fare by Airline",
-        file: "chart2_price_airline.png",
+        file: "static/chart2_price_airline.png",
         description: "A comprehensive breakdown of airline pricing bands, medians, and distribution ranges.",
         insights: [
           "Jet Airways Business and Vistara Premium Economy drive the top tier price ranges.",
@@ -226,7 +226,7 @@
       {
         id: "stops",
         title: "Stops Impact",
-        file: "chart3_price_stops.png",
+        file: "static/chart3_price_stops.png",
         description: "Compares average price behaviors and ranges based on the count of route layovers.",
         insights: [
           "Flights with 1 or 2 stops consistently show higher average prices than direct routes.",
@@ -237,7 +237,7 @@
       {
         id: "duration",
         title: "Duration Correlation",
-        file: "chart4_price_duration.png",
+        file: "static/chart4_price_duration.png",
         description: "Scatter plot plotting pricing points against total transit duration (in minutes).",
         insights: [
           "Positive correlation verified: price scales upward as total travel duration increases.",
@@ -248,7 +248,7 @@
       {
         id: "seasonality",
         title: "Seasonal Trends",
-        file: "chart5_price_month.png",
+        file: "static/chart5_price_month.png",
         description: "Seasonality patterns tracking average prices and flight densities across active travel months.",
         insights: [
           "Average fares peak during March, April, and May, matching major holiday periods.",
@@ -259,7 +259,7 @@
       {
         id: "timeofday",
         title: "Departure Hour",
-        file: "chart6_price_hour.png",
+        file: "static/chart6_price_hour.png",
         description: "Fares analyzed against departure timestamps to track time-of-day pricing advantages.",
         insights: [
           "Early morning departures (4:00 AM - 6:00 AM) feature the lowest ticket fares.",
@@ -270,7 +270,7 @@
       {
         id: "outliers",
         title: "Outlier Analysis",
-        file: "plot_outliers_before.png",
+        file: "static/plot_outliers_before.png",
         description: "Highlights high-variance prices before statistical cleaning.",
         insights: [
           "Fares above ₹20,000 skew standard regression coefficients.",
@@ -441,14 +441,41 @@
           flightArc = new THREE.Line(arcGeo, arcMat);
           mapGroup.add(flightArc);
 
-          // Plane (glowing yellow sphere)
-          const planeGeo = new THREE.SphereGeometry(0.18, 8, 8);
-          const planeMat = new THREE.MeshBasicMaterial({
-            color: 0xfacc15, // Bright yellow plane
-            transparent: true,
-            opacity: 1
-          });
-          planeMesh = new THREE.Mesh(planeGeo, planeMat);
+          // Plane (glowing low-poly 3D airplane model)
+          const createAirplane = () => {
+            const pGroup = new THREE.Group();
+            
+            // Fuselage (Body)
+            const bodyGeo = new THREE.ConeGeometry(0.1, 0.6, 8);
+            bodyGeo.rotateX(Math.PI / 2); // align forward along Z axis
+            const bodyMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            pGroup.add(body);
+            
+            // Wings
+            const wingGeo = new THREE.BoxGeometry(0.8, 0.015, 0.18);
+            const wingMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const wings = new THREE.Mesh(wingGeo, wingMat);
+            wings.position.set(0, 0, -0.05);
+            pGroup.add(wings);
+            
+            // Tail stabilizer
+            const tailGeo = new THREE.BoxGeometry(0.28, 0.015, 0.07);
+            const tailMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const tail = new THREE.Mesh(tailGeo, tailMat);
+            tail.position.set(0, 0, -0.23);
+            pGroup.add(tail);
+
+            // Vertical tail fin
+            const finGeo = new THREE.BoxGeometry(0.015, 0.14, 0.07);
+            const finMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const fin = new THREE.Mesh(finGeo, finMat);
+            fin.position.set(0, 0.07, -0.23);
+            pGroup.add(fin);
+
+            return pGroup;
+          };
+          planeMesh = createAirplane();
           mapGroup.add(planeMesh);
         }
 
@@ -476,10 +503,17 @@
 
           // Animate flight plane progress
           if (arcCurve && planeMesh) {
-            planeProgress += 0.012;
+            planeProgress += 0.009; // slightly slower for premium, realistic motion
             if (planeProgress > 1) planeProgress = 0;
+            
             const planePos = arcCurve.getPointAt(planeProgress);
+            const tangent = arcCurve.getTangentAt(planeProgress);
+            
             planeMesh.position.copy(planePos);
+            
+            // Orient flight group along the flight path tangent vector
+            const targetLook = planePos.clone().add(tangent);
+            planeMesh.lookAt(targetLook);
           }
 
           renderer.render(scene, camera);
