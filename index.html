@@ -441,36 +441,112 @@
           flightArc = new THREE.Line(arcGeo, arcMat);
           mapGroup.add(flightArc);
 
-          // Plane (glowing low-poly 3D airplane model)
+          // Plane (glowing realistic commercial airliner model)
           const createAirplane = () => {
             const pGroup = new THREE.Group();
             
-            // Fuselage (Body)
-            const bodyGeo = new THREE.ConeGeometry(0.1, 0.6, 8);
+            const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); // White fuselage
+            const wingMat = new THREE.MeshBasicMaterial({ color: 0xd1d5db }); // Light grey wings
+            const engineMat = new THREE.MeshBasicMaterial({ color: 0x374151 }); // Dark grey engines
+            const finMat = new THREE.MeshBasicMaterial({ color: 0x1e3a8a }); // Indigo blue tail fin
+            const windowMat = new THREE.MeshBasicMaterial({ color: 0x090d16 }); // Dark cockpit/windows
+
+            // 1. Fuselage (Body)
+            const bodyGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.5, 10);
             bodyGeo.rotateX(Math.PI / 2); // align forward along Z axis
-            const bodyMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
             const body = new THREE.Mesh(bodyGeo, bodyMat);
             pGroup.add(body);
-            
-            // Wings
-            const wingGeo = new THREE.BoxGeometry(0.8, 0.015, 0.18);
-            const wingMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-            const wings = new THREE.Mesh(wingGeo, wingMat);
-            wings.position.set(0, 0, -0.05);
-            pGroup.add(wings);
-            
-            // Tail stabilizer
-            const tailGeo = new THREE.BoxGeometry(0.28, 0.015, 0.07);
-            const tailMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-            const tail = new THREE.Mesh(tailGeo, tailMat);
-            tail.position.set(0, 0, -0.23);
-            pGroup.add(tail);
 
-            // Vertical tail fin
-            const finGeo = new THREE.BoxGeometry(0.015, 0.14, 0.07);
-            const finMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            // Nose Cone
+            const noseGeo = new THREE.ConeGeometry(0.045, 0.1, 10);
+            noseGeo.rotateX(Math.PI / 2);
+            const nose = new THREE.Mesh(noseGeo, wingMat);
+            nose.position.set(0, 0, 0.3); // 0.5/2 + 0.1/2 = 0.3
+            pGroup.add(nose);
+
+            // Tail Cone
+            const tailConeGeo = new THREE.ConeGeometry(0.045, 0.1, 10);
+            tailConeGeo.rotateX(-Math.PI / 2);
+            const tailCone = new THREE.Mesh(tailConeGeo, bodyMat);
+            tailCone.position.set(0, 0, -0.3);
+            pGroup.add(tailCone);
+
+            // 2. Cockpit Window
+            const cockpitGeo = new THREE.BoxGeometry(0.06, 0.02, 0.03);
+            const cockpit = new THREE.Mesh(cockpitGeo, windowMat);
+            cockpit.position.set(0, 0.02, 0.24);
+            cockpit.rotation.x = -0.35;
+            pGroup.add(cockpit);
+
+            // Passenger Windows (along both sides)
+            for (let offset = -0.15; offset <= 0.15; offset += 0.05) {
+              const windowGeo = new THREE.BoxGeometry(0.01, 0.015, 0.008);
+              
+              // Left Window
+              const wL = new THREE.Mesh(windowGeo, windowMat);
+              wL.position.set(-0.046, 0.005, offset);
+              pGroup.add(wL);
+              
+              // Right Window
+              const wR = new THREE.Mesh(windowGeo, windowMat);
+              wR.position.set(0.046, 0.005, offset);
+              pGroup.add(wR);
+            }
+
+            // 3. Swept-Back Wings
+            // Left Wing
+            const wingLGeo = new THREE.BoxGeometry(0.32, 0.012, 0.1);
+            wingLGeo.translate(-0.16, 0, 0); // pivot at base
+            const wingL = new THREE.Mesh(wingLGeo, wingMat);
+            wingL.position.set(0, -0.01, 0.04);
+            wingL.rotation.y = -0.28; // angle backward
+            pGroup.add(wingL);
+
+            // Right Wing
+            const wingRGeo = new THREE.BoxGeometry(0.32, 0.012, 0.1);
+            wingRGeo.translate(0.16, 0, 0); // pivot at base
+            const wingR = new THREE.Mesh(wingRGeo, wingMat);
+            wingR.position.set(0, -0.01, 0.04);
+            wingR.rotation.y = 0.28; // angle backward
+            pGroup.add(wingR);
+
+            // 4. Jet Engines (hanging under wings)
+            const engineGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8);
+            engineGeo.rotateX(Math.PI / 2);
+            
+            // Left Engine
+            const engineL = new THREE.Mesh(engineGeo, engineMat);
+            engineL.position.set(-0.14, -0.03, 0.02);
+            pGroup.add(engineL);
+
+            // Right Engine
+            const engineR = new THREE.Mesh(engineGeo, engineMat);
+            engineR.position.set(0.14, -0.03, 0.02);
+            pGroup.add(engineR);
+
+            // 5. Swept-Back Horizontal Tail Stabilizers
+            // Left Tail
+            const tailLGeo = new THREE.BoxGeometry(0.14, 0.008, 0.05);
+            tailLGeo.translate(-0.07, 0, 0);
+            const tailL = new THREE.Mesh(tailLGeo, wingMat);
+            tailL.position.set(0, 0.01, -0.2);
+            tailL.rotation.y = -0.32;
+            pGroup.add(tailL);
+
+            // Right Tail
+            const tailRGeo = new THREE.BoxGeometry(0.14, 0.008, 0.05);
+            tailRGeo.translate(0.07, 0, 0);
+            const tailR = new THREE.Mesh(tailRGeo, wingMat);
+            tailR.position.set(0, 0.01, -0.2);
+            tailR.rotation.y = 0.32;
+            pGroup.add(tailR);
+
+            // 6. Vertical Fin (Tail stabilizer)
+            const finGeo = new THREE.BoxGeometry(0.012, 0.13, 0.07);
+            finGeo.translate(0, 0.065, -0.015); // pivot base
             const fin = new THREE.Mesh(finGeo, finMat);
-            fin.position.set(0, 0.07, -0.23);
+            fin.position.set(0, 0.03, -0.22);
+            fin.rotation.x = -0.35; // slant back
             pGroup.add(fin);
 
             return pGroup;
